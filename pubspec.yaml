@@ -1,0 +1,42 @@
+name: ruta_libre
+description: Mapa de lugares y rutas accesibles con reportes de obstáculos y guía por voz.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.8.0
+  flutter: ">=3.32.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Mapa (OpenStreetMap)
+  flutter_map: ^8.3.2
+  latlong2: any # la versión la fija flutter_map
+
+  # Red: Overpass y openrouteservice
+  http: ^1.2.0
+
+  # Ubicación, voz y fotos
+  geolocator: ^14.0.0
+  flutter_tts: ^4.2.5
+  speech_to_text: ^7.3.0
+  image_picker: ^1.2.0
+  path_provider: ^2.1.0
+
+  # Enlaces (atribución de OSM, ver en OSM)
+  url_launcher: ^6.3.0
+
+  # Datos locales
+  shared_preferences: ^2.5.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

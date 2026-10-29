@@ -1,0 +1,108 @@
+name: CI
+
+# En cada push a main: análisis + pruebas; si pasan, APK de prueba y
+# versión web en GitHub Pages. En pull requests solo análisis + pruebas.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Las carpetas nativas no se versionan: se generan en cada corrida con la
+  # misma plantilla de Flutter y se les aplica tool/patch_platforms.dart.
+  CREATE_ARGS: --org com.drak028 --project-name ruta_libre
+
+jobs:
+  test:
+    name: Análisis y pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get
+      - name: Analizar
+        run: flutter analyze --no-fatal-infos
+      - name: Pruebas
+        run: flutter test --reporter expanded
+
+  web:
+    name: Versión web
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter create $CREATE_ARGS --platforms web .
+      - run: flutter pub get
+      # Sin clave de rutas: en web la escribe cada quien en Ajustes, así no
+      # queda expuesta en el código publicado.
+      - run: flutter build web --release --base-href /${{ github.event.repository.name }}/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  pages:
+    name: Publicar en GitHub Pages
+    needs: web
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  apk:
+    name: APK de prueba
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter create $CREATE_ARGS --platforms android .
+      - run: dart run tool/patch_platforms.dart
+      - run: flutter pub get
+      # La plantilla de Flutter firma el release con la llave de depuración:
+      # sirve para instalar en tu teléfono, no para la Play Store.
+      - run: flutter build apk --release
+      - run: cp build/app/outputs/flutter-apk/app-release.apk ruta-libre.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ruta-libre-apk
+          path: ruta-libre.apk
+      - name: Publicar como versión de prueba
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete prueba --yes --cleanup-tag || true
+          gh release create prueba ruta-libre.apk \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Versión de prueba" \
+            --notes "APK generado automáticamente desde ${GITHUB_SHA::7}. Descárgalo desde el teléfono e instálalo (permite instalar apps de origen desconocido)."
