@@ -36,3 +36,7 @@ ios/Flutter/flutter_export_environment.sh
 /macos/
 /windows/
 .metadata
+
+# Registros locales de la instalación
+/setup/instalacion.log
+/setup/estado.txt
