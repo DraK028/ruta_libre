@@ -40,3 +40,4 @@ ios/Flutter/flutter_export_environment.sh
 # Registros locales de la instalación
 /setup/instalacion.log
 /setup/estado.txt
+/setup/salida/

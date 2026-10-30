@@ -34,9 +34,15 @@ void main() {
       ),
     ));
 
+    expect(find.bySemanticsLabel('Farmacia Ejemplo. Acceso limitado.'),
+        findsOneWidget);
     expect(
-      tester.getSemantics(find.byType(PlaceMarker)),
-      containsSemantics(label: 'Farmacia Ejemplo. Acceso limitado.', isButton: true),
+      tester
+          .getSemantics(find.byType(PlaceMarker))
+          .getSemanticsData()
+          .flagsCollection
+          .isButton,
+      isTrue,
     );
     // Acceso limitado se distingue por ícono, no solo por color.
     expect(find.byIcon(Icons.remove), findsOneWidget);
