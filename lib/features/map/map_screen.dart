@@ -503,8 +503,9 @@ class _BottomControls extends StatelessWidget {
 
     return SafeArea(
       top: false,
-      child: Container(
+      child: Material(
         color: AppTheme.background,
+        child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -529,6 +530,7 @@ class _BottomControls extends StatelessWidget {
               ],
             ),
           ],
+        ),
         ),
       ),
     );

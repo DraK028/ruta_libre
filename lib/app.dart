@@ -18,6 +18,8 @@ class RutaLibreApp extends StatefulWidget {
 }
 
 class _RutaLibreAppState extends State<RutaLibreApp> {
+  late final bool _needsProfile = widget.state.settings.profile == null;
+
   @override
   void dispose() {
     widget.state.dispose();
@@ -46,7 +48,7 @@ class _RutaLibreAppState extends State<RutaLibreApp> {
             child: child!,
           );
         },
-        home: widget.state.settings.profile == null
+        home: _needsProfile
             ? const ProfileScreen(firstTime: true)
             : const MapScreen(),
       ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -52,10 +54,23 @@ class VoiceService {
   Future<void> setSpeechRate(double rate) => _tts.setSpeechRate(rate);
 
   /// Lee siempre en voz alta, interrumpiendo lo anterior.
+  ///
+  /// Espera a que termine de hablar, pero con un tope: en algunos navegadores
+  /// el motor de voz nunca avisa que terminó y la app no debe quedarse
+  /// detenida por eso.
   Future<void> speak(String text) async {
     if (text.trim().isEmpty) return;
-    await _tts.stop();
-    await _tts.speak(text);
+    // ~70 ms por letra en voz pausada, entre 3 y 30 segundos.
+    final limit = Duration(
+        milliseconds: (text.length * 70).clamp(3000, 30000).toInt());
+    try {
+      await _tts.stop().timeout(const Duration(seconds: 2));
+      await _tts.speak(text).timeout(limit);
+    } on TimeoutException {
+      // Se sigue: la voz puede seguir sonando, pero la app no se bloquea.
+    } catch (e) {
+      debugPrint('No se pudo hablar: $e');
+    }
   }
 
   /// Anuncios de navegación: solo si la guía por voz está activa.
