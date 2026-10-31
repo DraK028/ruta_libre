@@ -10,6 +10,24 @@ import '../../app_state.dart';
 import '../../core/theme.dart';
 import '../../models/report.dart';
 import '../../widgets/report_photo.dart';
+import '../../widgets/ui.dart';
+
+/// "6 horas", "3 días".
+String formatTtl(Duration d) {
+  if (d.inHours < 24) return d.inHours == 1 ? '1 hora' : '${d.inHours} horas';
+  return d.inDays == 1 ? '1 día' : '${d.inDays} días';
+}
+
+IconData reportIcon(ReportType t) => switch (t) {
+      ReportType.blockedRamp => Icons.directions_car_outlined,
+      ReportType.openDrain => Icons.blur_circular,
+      ReportType.brokenSidewalk => Icons.timeline,
+      ReportType.construction => Icons.construction,
+      ReportType.noRamp => Icons.stairs_outlined,
+      ReportType.elevatorOut => Icons.elevator_outlined,
+      ReportType.flooding => Icons.water_drop_outlined,
+      ReportType.other => Icons.error_outline,
+    };
 
 /// Reportar un peligro en tres toques: tipo, gravedad y enviar.
 ///
@@ -103,126 +121,200 @@ class _NewReportScreenState extends State<NewReportScreen> {
     if (mounted) Navigator.of(context).pop();
   }
 
-  IconData _icon(ReportType t) => switch (t) {
-        ReportType.blockedRamp => Icons.car_crash,
-        ReportType.openDrain => Icons.circle_outlined,
-        ReportType.brokenSidewalk => Icons.broken_image,
-        ReportType.construction => Icons.construction,
-        ReportType.noRamp => Icons.stairs,
-        ReportType.elevatorOut => Icons.elevator,
-        ReportType.flooding => Icons.water,
-        ReportType.other => Icons.warning,
-      };
-
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
+    final rl = context.rl;
     final text = Theme.of(context).textTheme;
     final accuracy = app.location.accuracy;
+    final type = _type;
+    final canSend = type != null && app.me != null && !_sending;
+
+    Widget heading(String s) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Semantics(
+            header: true,
+            child: Text(s,
+                style: TextStyle(
+                    fontSize: 17, fontWeight: FontWeight.w700, color: rl.text)),
+          ),
+        );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Reportar peligro')),
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Cerrar',
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        titleSpacing: 0,
+        title: const Text('Reportar peligro'),
+      ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              app.me == null
-                  ? 'Buscando tu ubicación…'
-                  : 'Se reportará donde estás'
-                      '${accuracy == null ? '' : ' (precisión de ${accuracy.round()} m)'}.',
-              style: text.bodyLarge?.copyWith(
-                  color: app.me == null ? AppTheme.danger : AppTheme.textMuted),
-            ),
-            const SizedBox(height: 16),
-            Text('1. ¿Qué encontraste?', style: text.headlineMedium),
-            const SizedBox(height: 12),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.25,
-              children: [
-                for (final t in ReportType.values)
-                  _TypeButton(
-                    icon: _icon(t),
-                    label: t.label,
-                    selected: _type == t,
-                    onTap: () => _pickType(t),
-                  ),
-              ],
-            ),
-            if (_type != null) ...[
-              const SizedBox(height: 24),
-              Text('2. Gravedad', style: text.headlineMedium),
-              const SizedBox(height: 12),
-              Row(
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
                 children: [
-                  for (final s in Severity.values) ...[
-                    Expanded(
-                      child: Semantics(
-                        selected: _severity == s,
-                        button: true,
-                        label: 'Gravedad ${s.label}',
-                        excludeSemantics: true,
-                        child: _severity == s
-                            ? ElevatedButton(
-                                onPressed: () => setState(() => _severity = s),
-                                child: Text(s.label))
-                            : OutlinedButton(
-                                onPressed: () => setState(() => _severity = s),
-                                child: Text(s.label)),
+                  MergeSemantics(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: rl.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: rl.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: app.me == null
+                                  ? rl.hazardSoft
+                                  : rl.primarySoft,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                                app.me == null
+                                    ? Icons.location_searching
+                                    : Icons.location_on_outlined,
+                                color: app.me == null
+                                    ? rl.hazardText
+                                    : rl.primary),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                    app.me == null
+                                        ? 'Buscando tu ubicación…'
+                                        : 'Se reportará donde estás',
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: rl.text)),
+                                Text(
+                                    app.me == null
+                                        ? 'Revisa que el GPS esté encendido'
+                                        : 'Ubicación por GPS'
+                                            '${accuracy == null ? '' : ' · precisión ${accuracy.round()} m'}',
+                                    style: TextStyle(
+                                        fontSize: 14, color: rl.text2)),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    if (s != Severity.values.last) const SizedBox(width: 8),
+                  ),
+                  const SizedBox(height: 20),
+                  heading('¿Qué encontraste?'),
+                  LayoutBuilder(builder: (context, c) {
+                    final w = (c.maxWidth - 10) / 2;
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        for (final t in ReportType.values)
+                          SizedBox(
+                            width: w,
+                            child: _TypeOption(
+                              icon: reportIcon(t),
+                              label: t.label,
+                              selected: _type == t,
+                              onTap: () => _pickType(t),
+                            ),
+                          ),
+                      ],
+                    );
+                  }),
+                  const SizedBox(height: 20),
+                  heading('Gravedad'),
+                  Segmented<Severity>(
+                    values: Severity.values,
+                    selected: _severity,
+                    labelOf: (s) => s.label,
+                    semanticPrefix: 'Gravedad ',
+                    onChanged: (s) {
+                      HapticFeedback.selectionClick();
+                      setState(() => _severity = s);
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: rl.text2),
+                      textStyle:
+                          const TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+                    ),
+                    onPressed: _sending ? null : _takePhoto,
+                    icon: Icon(_photoPath == null
+                        ? Icons.photo_camera_outlined
+                        : Icons.check),
+                    label: Text(_photoPath == null
+                        ? 'Agregar foto (opcional)'
+                        : 'Cambiar foto'),
+                  ),
+                  if (_photoPath != null) ...[
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: ReportPhoto(path: _photoPath!, height: 180),
+                    ),
                   ],
+                  const SizedBox(height: 6),
+                  Text('Evita que salgan rostros o placas en la foto.',
+                      style: TextStyle(fontSize: 14, color: rl.text2)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _note,
+                    style: text.bodyLarge,
+                    maxLines: 2,
+                    maxLength: 140,
+                    decoration: const InputDecoration(
+                      labelText: 'Nota (opcional)',
+                      hintText: 'Ej. frente a la farmacia',
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 24),
-              Text('3. Opcional', style: text.headlineMedium),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _sending ? null : _takePhoto,
-                icon: Icon(_photoPath == null ? Icons.photo_camera : Icons.check,
-                    size: 30),
-                label: Text(_photoPath == null ? 'Agregar foto' : 'Foto agregada'),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                border: Border(top: BorderSide(color: rl.border)),
               ),
-              if (_photoPath != null) ...[
-                const SizedBox(height: 8),
-                ReportPhoto(path: _photoPath!, height: 180),
-              ],
-              const SizedBox(height: 8),
-              Text(
-                'Evita que salgan rostros o placas en la foto.',
-                style: text.bodyMedium?.copyWith(color: AppTheme.textMuted),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _note,
-                style: text.bodyLarge,
-                maxLines: 2,
-                maxLength: 140,
-                decoration: const InputDecoration(
-                  labelText: 'Nota (ej. frente a la farmacia)',
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 96,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.danger,
-                    foregroundColor: AppTheme.onAccent,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.hazard,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: canSend ? _send : null,
+                    child: Text(_sending
+                        ? 'Enviando…'
+                        : (type == null ? 'Elige qué encontraste' : 'Enviar reporte')),
                   ),
-                  onPressed: _sending || app.me == null ? null : _send,
-                  icon: const Icon(Icons.send, size: 36),
-                  label: Text(_sending ? 'Enviando…' : 'Enviar reporte',
-                      style: const TextStyle(fontSize: 26)),
-                ),
+                  const SizedBox(height: 8),
+                  Text(
+                    type == null
+                        ? 'Los reportes caducan solos si nadie confirma que siguen ahí'
+                        : 'Caduca en ${formatTtl(type.ttl)} si nadie confirma que sigue ahí',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: rl.text2),
+                  ),
+                ],
               ),
-            ],
+            ),
           ],
         ),
       ),
@@ -230,8 +322,8 @@ class _NewReportScreenState extends State<NewReportScreen> {
   }
 }
 
-class _TypeButton extends StatelessWidget {
-  const _TypeButton({
+class _TypeOption extends StatelessWidget {
+  const _TypeOption({
     required this.icon,
     required this.label,
     required this.selected,
@@ -245,37 +337,43 @@ class _TypeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? AppTheme.onAccent : AppTheme.text;
+    final rl = context.rl;
     return Semantics(
       button: true,
       selected: selected,
+      inMutuallyExclusiveGroup: true,
       label: label,
       excludeSemantics: true,
       child: Material(
-        color: selected ? AppTheme.accent : AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        color: selected ? rl.hazardSoft : rl.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: selected ? AppTheme.hazard : rl.border,
+            width: selected ? 2 : 1,
+          ),
+        ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                  color: selected ? AppTheme.accent : AppTheme.textMuted,
-                  width: 2),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+            constraints: const BoxConstraints(minHeight: 64),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
               children: [
-                Icon(icon, size: 40, color: selected ? fg : AppTheme.accent),
-                const SizedBox(height: 6),
-                Text(label,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w700, color: fg)),
+                Icon(icon,
+                    size: 22, color: selected ? AppTheme.hazard : rl.text),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(label,
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.2,
+                        color: selected ? rl.hazardText : rl.text,
+                        fontWeight:
+                            selected ? FontWeight.w700 : FontWeight.w400,
+                      )),
+                ),
               ],
             ),
           ),

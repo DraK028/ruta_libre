@@ -31,7 +31,7 @@ class ReportPhoto extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
-                    ?.copyWith(color: AppTheme.textMuted)),
+                    ?.copyWith(color: context.rl.text2)),
           ),
         );
 

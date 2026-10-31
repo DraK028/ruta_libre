@@ -38,6 +38,15 @@ test/                       pruebas de core/ y modelos + widgets
 tool/patch_platforms.dart   permisos de Android e iOS
 ```
 
+## Documentación
+
+- [Manual técnico](docs/Manual_Tecnico_Ruta_Libre.pdf) ([Word](docs/Manual_Tecnico_Ruta_Libre.docx)): arquitectura, datos, algoritmos, pruebas, despliegue y código.
+- [Manual de usuario](docs/Manual_Usuario_Ruta_Libre.pdf) ([Word](docs/Manual_Usuario_Ruta_Libre.docx)): instalación y uso paso a paso, voz y TalkBack, preguntas frecuentes.
+
+## Interfaz
+
+Tema claro y oscuro (sigue al sistema o se elige en Ajustes), letra Atkinson Hyperlegible incluida en la app, mapa a pantalla completa con la hoja «Cerca de ti», búsqueda con micrófono y filtros rápidos. Todos los colores cumplen contraste WCAG AA (mínimo 4.92:1).
+
 ## Cómo correrlo
 
 Requisitos: Flutter 3.32 o superior y un teléfono con GPS.
@@ -58,6 +67,8 @@ flutter run --dart-define=ORS_API_KEY=tu_clave
 ```
 
 También se puede escribir la clave en **Ajustes → Rutas** (se guarda solo en ese dispositivo). Sin clave, todo funciona menos "Cómo llegar".
+
+En Windows, los scripts de `setup/` automatizan todo: `instalar_entorno.bat` (entorno), `revisar.bat` (análisis y pruebas) y `generar_apk.bat` (APK de pruebas en `RutaLibre.apk`).
 
 Antes de probar en campo, revisa `AppConfig.pilotCenter` en `lib/config.dart`: es el centro **aproximado** de UPIICSA; ajústalo con openstreetmap.org.
 

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../app_state.dart';
 import '../../config.dart';
 import '../../core/theme.dart';
+import '../../models/settings.dart';
+import '../../widgets/ui.dart';
 import '../onboarding/profile_screen.dart';
 
 /// Perfil, voz, avisos, tamaño de letra y privacidad.
@@ -44,135 +46,263 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final s = app.settings;
-    final text = Theme.of(context).textTheme;
-    final muted = text.bodyMedium?.copyWith(color: AppTheme.textMuted);
+    final rl = context.rl;
+    final muted = TextStyle(fontSize: 14, color: rl.text2);
+    TextStyle title() =>
+        TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: rl.text);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Ajustes')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
-            Text('Perfil', style: text.headlineMedium),
-            const SizedBox(height: 8),
-            Text(app.profile.label, style: text.titleLarge),
-            Text(app.profile.description, style: muted),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => const ProfileScreen())),
-              child: const Text('Cambiar perfil'),
-            ),
-            const Divider(height: 40, color: AppTheme.textMuted),
-            Text('Voz y avisos', style: text.headlineMedium),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text('Guía por voz', style: text.titleLarge),
-              subtitle: Text('Anunciar cada pantalla y acción', style: muted),
-              value: s.voiceGuidance,
-              onChanged: (v) => app.updateSettings(s.copyWith(voiceGuidance: v)),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text('Avisar peligros cercanos', style: text.titleLarge),
-              subtitle: Text(
-                  'Voz y vibración a ${AppConfig.hazardAlertMeters.round()} m '
-                  'de un peligro reportado',
-                  style: muted),
-              value: s.hazardAlerts,
-              onChanged: (v) => app.updateSettings(s.copyWith(hazardAlerts: v)),
-            ),
-            const SizedBox(height: 8),
-            Text('Velocidad de la voz', style: text.titleLarge),
-            Slider(
-              value: s.speechRate,
-              min: 0.3,
-              max: 0.7,
-              divisions: 4,
-              semanticFormatterCallback: (v) =>
-                  v < 0.45 ? 'lenta' : (v > 0.55 ? 'rápida' : 'normal'),
-              onChanged: (v) => app.updateSettings(s.copyWith(speechRate: v)),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => app.voice.speak('Así sueno con esta velocidad.'),
-              icon: const Icon(Icons.record_voice_over, size: 30),
-              label: const Text('Probar voz'),
-            ),
-            const Divider(height: 40, color: AppTheme.textMuted),
-            Text('Tamaño de letra', style: text.headlineMedium),
-            Text('Ejemplo de texto', style: text.bodyLarge),
-            Slider(
-              value: s.textScale,
-              min: 1.0,
-              max: 2.0,
-              divisions: 5,
-              semanticFormatterCallback: (v) => '${(v * 100).round()} por ciento',
-              onChanged: (v) => app.updateSettings(s.copyWith(textScale: v)),
-            ),
-            const Divider(height: 40, color: AppTheme.textMuted),
-            Text('Rutas', style: text.headlineMedium),
-            const SizedBox(height: 8),
-            Text(
-              app.hasRoutingKey
-                  ? 'Las rutas están activas.'
-                  : 'Para calcular rutas hace falta una clave gratuita de '
-                      'openrouteservice.org. Se guarda solo en este dispositivo.',
-              style: text.bodyLarge,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _orsKey,
-              obscureText: !_showKey,
-              autocorrect: false,
-              enableSuggestions: false,
-              style: text.bodyLarge,
-              decoration: InputDecoration(
-                labelText: 'Clave de openrouteservice',
-                suffixIcon: IconButton(
-                  iconSize: 28,
-                  tooltip: _showKey ? 'Ocultar clave' : 'Mostrar clave',
-                  icon: Icon(_showKey ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () => setState(() => _showKey = !_showKey),
+            _Section(
+              title: 'Perfil',
+              children: [
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: rl.primarySoft,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.person_outline, color: rl.primary),
+                  ),
+                  title: Text(app.profile.label, style: title()),
+                  subtitle: Text(app.profile.description, style: muted),
+                  trailing: Icon(Icons.chevron_right, color: rl.text2),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) => const ProfileScreen())),
                 ),
-              ),
+              ],
             ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () => _saveKey(app),
-              child: const Text('Guardar clave'),
+            _Section(
+              title: 'Apariencia',
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                  child: Text('Tema', style: title()),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
+                  child: Segmented<ThemePreference>(
+                    values: ThemePreference.values,
+                    selected: s.theme,
+                    labelOf: (t) => t.label,
+                    semanticPrefix: 'Tema ',
+                    onChanged: (t) => app.updateSettings(s.copyWith(theme: t)),
+                  ),
+                ),
+                const Divider(indent: 16, endIndent: 16),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                  child: Text('Tamaño de letra', style: title()),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: Text('Así se verá el texto de la app.', style: muted),
+                ),
+                Slider(
+                  value: s.textScale,
+                  min: 1.0,
+                  max: 2.0,
+                  divisions: 5,
+                  semanticFormatterCallback: (v) =>
+                      '${(v * 100).round()} por ciento',
+                  onChanged: (v) => app.updateSettings(s.copyWith(textScale: v)),
+                ),
+              ],
             ),
-            const Divider(height: 40, color: AppTheme.textMuted),
-            Text('Datos del mapa', style: text.headlineMedium),
-            const SizedBox(height: 8),
-            Text(
-              'Los lugares vienen de OpenStreetMap y se guardan en el teléfono '
-              'por ${AppConfig.placesCacheTtl.inDays} días.',
-              style: text.bodyLarge,
+            _Section(
+              title: 'Voz y avisos',
+              children: [
+                SwitchListTile(
+                  title: Text('Guía por voz', style: title()),
+                  subtitle: Text('Anunciar cada pantalla y acción', style: muted),
+                  value: s.voiceGuidance,
+                  onChanged: (v) =>
+                      app.updateSettings(s.copyWith(voiceGuidance: v)),
+                ),
+                const Divider(indent: 16, endIndent: 16),
+                SwitchListTile(
+                  title: Text('Avisar peligros cercanos', style: title()),
+                  subtitle: Text(
+                      'Voz y vibración a ${AppConfig.hazardAlertMeters.round()} m '
+                      'de un peligro reportado',
+                      style: muted),
+                  value: s.hazardAlerts,
+                  onChanged: (v) =>
+                      app.updateSettings(s.copyWith(hazardAlerts: v)),
+                ),
+                const Divider(indent: 16, endIndent: 16),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                  child: Text('Velocidad de la voz', style: title()),
+                ),
+                Slider(
+                  value: s.speechRate,
+                  min: 0.3,
+                  max: 0.7,
+                  divisions: 4,
+                  semanticFormatterCallback: (v) =>
+                      v < 0.45 ? 'lenta' : (v > 0.55 ? 'rápida' : 'normal'),
+                  onChanged: (v) => app.updateSettings(s.copyWith(speechRate: v)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.icon(
+                      onPressed: () =>
+                          app.voice.speak('Así sueno con esta velocidad.'),
+                      icon: const Icon(Icons.record_voice_over_outlined, size: 20),
+                      label: const Text('Probar voz'),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: app.loadingPlaces
-                  ? null
-                  : () async {
-                      await app.loadPlaces(AppConfig.pilotCenter, force: true);
-                      await app.voice.speak(app.placesError ??
-                          'Lugares actualizados.');
-                    },
-              icon: const Icon(Icons.refresh, size: 30),
-              label: Text(app.loadingPlaces ? 'Actualizando…' : 'Actualizar lugares'),
+            _Section(
+              title: 'Rutas',
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                              app.hasRoutingKey
+                                  ? Icons.check_circle
+                                  : Icons.info_outline,
+                              color: app.hasRoutingKey
+                                  ? AppTheme.accessYes
+                                  : rl.text2),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              app.hasRoutingKey
+                                  ? 'Las rutas están activas.'
+                                  : 'Para calcular rutas hace falta una clave '
+                                      'gratuita de openrouteservice.org. Se '
+                                      'guarda solo en este dispositivo.',
+                              style: TextStyle(fontSize: 15, color: rl.text),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _orsKey,
+                        obscureText: !_showKey,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        decoration: InputDecoration(
+                          labelText: 'Clave de openrouteservice',
+                          suffixIcon: IconButton(
+                            tooltip: _showKey ? 'Ocultar clave' : 'Mostrar clave',
+                            icon: Icon(_showKey
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined),
+                            onPressed: () => setState(() => _showKey = !_showKey),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        onPressed: () => _saveKey(app),
+                        child: const Text('Guardar clave'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const Divider(height: 40, color: AppTheme.textMuted),
-            Text('Privacidad', style: text.headlineMedium),
-            const SizedBox(height: 8),
-            Text(
-              'Tu ubicación se usa en el teléfono para mostrar qué hay cerca. '
-              'En este prototipo los reportes se guardan solo en tu teléfono. '
-              'Cuando se compartan, se enviará la ubicación del peligro, '
-              'nunca tu recorrido.',
-              style: text.bodyLarge,
+            _Section(
+              title: 'Datos del mapa',
+              children: [
+                ListTile(
+                  title: Text('Actualizar lugares', style: title()),
+                  subtitle: Text(
+                      'Vienen de OpenStreetMap y se guardan en el teléfono por '
+                      '${AppConfig.placesCacheTtl.inDays} días.',
+                      style: muted),
+                  trailing: app.loadingPlaces
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.5))
+                      : Icon(Icons.refresh, color: rl.primary),
+                  onTap: app.loadingPlaces
+                      ? null
+                      : () async {
+                          await app.loadPlaces(AppConfig.pilotCenter, force: true);
+                          await app.voice
+                              .speak(app.placesError ?? 'Lugares actualizados.');
+                        },
+                ),
+              ],
+            ),
+            _Section(
+              title: 'Privacidad',
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Tu ubicación se usa en el teléfono para mostrar qué hay '
+                    'cerca. En este prototipo los reportes se guardan solo en '
+                    'tu teléfono. Cuando se compartan, se enviará la ubicación '
+                    'del peligro, nunca tu recorrido.',
+                    style: TextStyle(fontSize: 15, height: 1.4, color: rl.text),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Grupo de ajustes con título y tarjeta.
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.children});
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final rl = context.rl;
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Semantics(
+              header: true,
+              child: Text(title.toUpperCase(),
+                  style: TextStyle(
+                      fontSize: 13,
+                      letterSpacing: 0.8,
+                      fontWeight: FontWeight.w700,
+                      color: rl.text2)),
+            ),
+          ),
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
+          ),
+        ],
       ),
     );
   }

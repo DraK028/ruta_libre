@@ -103,3 +103,21 @@ List<List<double>> squareRing(LatLng center, double meters) {
     [w, s],
   ];
 }
+
+/// Para leer en pantalla: "120 m", "1.2 km".
+String formatDistanceShort(double meters) {
+  if (meters < 1000) return '${(meters / 10).round() * 10} m';
+  final km = (meters / 100).round() / 10;
+  return '${km == km.roundToDouble() ? km.toStringAsFixed(0) : km.toStringAsFixed(1)} km';
+}
+
+/// Velocidad de paso tranquila (m/s) para estimar tiempos sin ruta.
+const walkingSpeed = 1.0;
+
+/// "2 min", "1 h 5 min". Nunca menos de 1 min.
+String formatDuration(double seconds) {
+  final minutes = (seconds / 60).ceil().clamp(1, 100000);
+  if (minutes < 60) return '$minutes min';
+  final h = minutes ~/ 60, m = minutes % 60;
+  return m == 0 ? '$h h' : '$h h $m min';
+}

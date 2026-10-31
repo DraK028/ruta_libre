@@ -6,13 +6,12 @@ import '../../core/describe.dart';
 import '../../core/text_utils.dart';
 import '../../core/theme.dart';
 import '../../models/place.dart';
-import '../../models/report.dart';
-import '../../widgets/map_markers.dart';
+import '../../widgets/ui.dart';
 import '../place/place_screen.dart';
 import '../report/report_screen.dart';
 
-/// "¿Qué hay cerca?": la vista del mapa en forma de lista, para lector de
-/// pantalla y voz. Ordenada por distancia y con dirección relativa.
+/// "¿Qué hay cerca?" a pantalla completa. Se abre con el comando de voz y
+/// es la misma lista que la hoja del mapa, pensada para lector de pantalla.
 class NearbyScreen extends StatefulWidget {
   const NearbyScreen({super.key});
 
@@ -31,8 +30,8 @@ class _NearbyScreenState extends State<NearbyScreen> {
       final app = AppScope.read(context);
       final hazards = app.reportsNearby().length;
       app.voice.announce(
-        'Cerca de ti. Toca Escuchar los más cercanos, o recorre la lista. '
-        '${hazards == 0 ? 'No hay peligros reportados.' : 'Hay $hazards peligros reportados en la pestaña Peligros.'}',
+        'Cerca de ti. Toca Escuchar para oír los más cercanos, o recorre la '
+        'lista. ${hazards == 0 ? 'No hay peligros reportados.' : 'Hay $hazards peligros reportados en la pestaña Peligros.'}',
       );
     });
   }
@@ -74,238 +73,84 @@ class _NearbyScreenState extends State<NearbyScreen> {
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
-    final text = Theme.of(context).textTheme;
+    final rl = context.rl;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Cerca de ti')),
+      appBar: AppBar(
+        title: const Text('Cerca de ti'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: ListenButton(onPressed: () => _speakTop(app), label: 'Escuchar'),
+          ),
+        ],
+      ),
       body: SafeArea(
         // Se redibuja al moverse para que distancias y direcciones sigan vigentes.
         child: ValueListenableBuilder<LatLng?>(
           valueListenable: app.location.position,
           builder: (context, me, _) {
-            final now = DateTime.now();
             final places = _filtered(app);
             final hazards = app.reportsNearby();
             return ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
               children: [
-                if (me == null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      'Sin ubicación todavía: las distancias se miden desde '
-                      'el centro de la zona piloto.',
-                      style: text.bodyMedium?.copyWith(color: AppTheme.textMuted),
-                    ),
-                  ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _Tab(
-                        label: 'Lugares',
-                        selected: !_showHazards,
-                        onTap: () => setState(() => _showHazards = false),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _Tab(
-                        label: 'Peligros (${hazards.length})',
-                        selected: _showHazards,
-                        onTap: () => setState(() => _showHazards = true),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  onPressed: () => _speakTop(app),
-                  icon: const Icon(Icons.volume_up, size: 32),
-                  label: const Text('Escuchar los más cercanos'),
+                Segmented<bool>(
+                  values: const [false, true],
+                  selected: _showHazards,
+                  labelOf: (h) => h ? 'Peligros · ${hazards.length}' : 'Lugares',
+                  onChanged: (h) => setState(() => _showHazards = h),
                 ),
                 const SizedBox(height: 12),
                 if (!_showHazards)
                   TextField(
-                    style: text.titleLarge,
                     decoration: const InputDecoration(
-                      labelText: 'Buscar (farmacia, banco, baños…)',
-                      prefixIcon: Icon(Icons.search, size: 28),
+                      hintText: 'Buscar farmacia, banco, baños…',
+                      prefixIcon: Icon(Icons.search),
                     ),
                     onChanged: (v) => setState(() => _query = v),
                   ),
-                const SizedBox(height: 12),
+                if (me == null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(
+                      'Sin ubicación todavía: las distancias se miden desde '
+                      'el centro de la zona piloto.',
+                      style: TextStyle(fontSize: 14, color: rl.text2),
+                    ),
+                  ),
+                const SizedBox(height: 4),
                 if (_showHazards) ...[
                   if (hazards.isEmpty)
-                    const _Empty('No hay peligros reportados cerca.'),
+                    const EmptyNote('No hay peligros reportados cerca.',
+                        icon: Icons.verified_outlined),
                   for (final r in hazards)
-                    _HazardTile(
+                    HazardRow(
                       report: r,
-                      subtitle: whereIs(r.location, me, app.heading),
-                      semantic: describeReport(r, now, me: me, heading: app.heading),
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                          builder: (_) => ReportScreen(reportId: r.id))),
+                      me: me,
+                      heading: app.heading,
+                      onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                              builder: (_) => ReportScreen(reportId: r.id))),
                     ),
                 ] else ...[
                   if (places.isEmpty)
-                    _Empty(app.loadingPlaces
+                    EmptyNote(app.loadingPlaces
                         ? 'Descargando lugares…'
                         : 'No encontré lugares con ese nombre.'),
                   for (final p in places)
-                    _PlaceTile(
+                    PlaceRow(
                       place: p,
-                      subtitle: whereIs(p.location, me, app.heading),
-                      semantic: describePlace(p, me: me, heading: app.heading),
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                          builder: (_) => PlaceScreen(place: p))),
+                      me: me,
+                      heading: app.heading,
+                      onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                              builder: (_) => PlaceScreen(place: p))),
                     ),
                 ],
               ],
             );
           },
-        ),
-      ),
-    );
-  }
-}
-
-class _Tab extends StatelessWidget {
-  const _Tab({required this.label, required this.selected, required this.onTap});
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: label,
-      excludeSemantics: true,
-      child: selected
-          ? ElevatedButton(onPressed: onTap, child: Text(label))
-          : OutlinedButton(onPressed: onTap, child: Text(label)),
-    );
-  }
-}
-
-class _Empty extends StatelessWidget {
-  const _Empty(this.message);
-  final String message;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 32),
-        child: Text(message,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleLarge),
-      );
-}
-
-class _PlaceTile extends StatelessWidget {
-  const _PlaceTile({
-    required this.place,
-    required this.subtitle,
-    required this.semantic,
-    required this.onTap,
-  });
-
-  final Place place;
-  final String subtitle;
-  final String semantic;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    return Semantics(
-      button: true,
-      label: semantic,
-      excludeSemantics: true,
-      child: Card(
-        color: AppTheme.surface,
-        margin: const EdgeInsets.only(bottom: 12),
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: accessColor(place.access),
-                  child: Icon(accessIcon(place.access), color: Colors.white, size: 28),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(place.name, style: text.titleLarge),
-                      Text('${place.category} · ${place.access.label}',
-                          style: text.bodyMedium?.copyWith(color: AppTheme.textMuted)),
-                      if (subtitle.isNotEmpty)
-                        Text(subtitle, style: text.bodyLarge),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HazardTile extends StatelessWidget {
-  const _HazardTile({
-    required this.report,
-    required this.subtitle,
-    required this.semantic,
-    required this.onTap,
-  });
-
-  final Report report;
-  final String subtitle;
-  final String semantic;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    return Semantics(
-      button: true,
-      label: semantic,
-      excludeSemantics: true,
-      child: Card(
-        color: AppTheme.surface,
-        margin: const EdgeInsets.only(bottom: 12),
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Icon(Icons.warning,
-                    size: 44,
-                    color: report.severity == Severity.high
-                        ? AppTheme.hazard
-                        : AppTheme.accessLimited),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(report.type.label, style: text.titleLarge),
-                      Text('Gravedad ${report.severity.label.toLowerCase()}',
-                          style: text.bodyMedium?.copyWith(color: AppTheme.textMuted)),
-                      if (subtitle.isNotEmpty) Text(subtitle, style: text.bodyLarge),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );

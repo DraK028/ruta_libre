@@ -7,6 +7,7 @@ import 'app_state.dart';
 import 'core/theme.dart';
 import 'features/map/map_screen.dart';
 import 'features/onboarding/profile_screen.dart';
+import 'models/settings.dart';
 
 class RutaLibreApp extends StatefulWidget {
   const RutaLibreApp({super.key, required this.state});
@@ -19,9 +20,23 @@ class RutaLibreApp extends StatefulWidget {
 
 class _RutaLibreAppState extends State<RutaLibreApp> {
   late final bool _needsProfile = widget.state.settings.profile == null;
+  late ThemePreference _theme = widget.state.settings.theme;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.state.addListener(_onState);
+  }
+
+  /// Solo se reconstruye la app entera si cambia el tema.
+  void _onState() {
+    final next = widget.state.settings.theme;
+    if (next != _theme) setState(() => _theme = next);
+  }
 
   @override
   void dispose() {
+    widget.state.removeListener(_onState);
     widget.state.dispose();
     super.dispose();
   }
@@ -33,7 +48,13 @@ class _RutaLibreAppState extends State<RutaLibreApp> {
       child: MaterialApp(
         title: 'Ruta Libre',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.build(),
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: switch (_theme) {
+          ThemePreference.system => ThemeMode.system,
+          ThemePreference.light => ThemeMode.light,
+          ThemePreference.dark => ThemeMode.dark,
+        },
         locale: const Locale('es', 'MX'),
         supportedLocales: const [Locale('es', 'MX'), Locale('es')],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,

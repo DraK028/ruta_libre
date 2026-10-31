@@ -63,4 +63,14 @@ void main() {
     expect(distanceMeters(sw, se), closeTo(30, 0.5));
     expect(distanceMeters(se, ne), closeTo(30, 0.5));
   });
+
+  test('distancias y tiempos cortos para pantalla', () {
+    expect(formatDistanceShort(118), '120 m');
+    expect(formatDistanceShort(1000), '1 km');
+    expect(formatDistanceShort(1260), '1.3 km');
+    expect(formatDuration(20), '1 min');
+    expect(formatDuration(120), '2 min');
+    expect(formatDuration(3900), '1 h 5 min');
+    expect(formatDuration(7200), '2 h');
+  });
 }

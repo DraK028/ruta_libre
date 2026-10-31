@@ -19,7 +19,50 @@ IconData accessIcon(Accessibility a) => switch (a) {
       Accessibility.unknown => Icons.question_mark,
     };
 
-/// Círculo de un lugar en el mapa (cuadrado si es un cruce).
+Color hazardColor(Severity s) =>
+    s == Severity.low ? AppTheme.accessLimited : AppTheme.hazard;
+
+const _markerShadow = [
+  BoxShadow(color: Color(0x4D000000), blurRadius: 6, offset: Offset(0, 2)),
+];
+
+/// Círculo de estado con su ícono (en el mapa y en las listas).
+class AccessBadge extends StatelessWidget {
+  const AccessBadge({
+    super.key,
+    required this.access,
+    this.size = 40,
+    this.ring = false,
+    this.square = false,
+  });
+
+  final Accessibility access;
+  final double size;
+
+  /// Aro blanco y sombra, para que resalte sobre el mapa.
+  final bool ring;
+
+  /// Los cruces son cuadrados; los lugares, círculos.
+  final bool square;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: accessColor(access),
+        shape: square ? BoxShape.rectangle : BoxShape.circle,
+        borderRadius: square ? BorderRadius.circular(size * 0.22) : null,
+        border: ring ? Border.all(color: Colors.white, width: 3) : null,
+        boxShadow: ring ? _markerShadow : null,
+      ),
+      child: Icon(accessIcon(access), color: Colors.white, size: size * 0.5),
+    );
+  }
+}
+
+/// Lugar en el mapa (cuadrado si es un cruce).
 class PlaceMarker extends StatelessWidget {
   const PlaceMarker({
     super.key,
@@ -41,18 +84,13 @@ class PlaceMarker extends StatelessWidget {
       excludeSemantics: true,
       child: GestureDetector(
         onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: accessColor(place.access),
-            shape: crossing ? BoxShape.rectangle : BoxShape.circle,
-            borderRadius: crossing ? BorderRadius.circular(6) : null,
-            border: Border.all(color: Colors.white, width: 3),
-            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 4)],
-          ),
-          child: Icon(
-            accessIcon(place.access),
-            color: Colors.white,
-            size: crossing ? 18 : 26,
+        behavior: HitTestBehavior.opaque,
+        child: Center(
+          child: AccessBadge(
+            access: place.access,
+            size: crossing ? 26 : 40,
+            ring: true,
+            square: crossing,
           ),
         ),
       ),
@@ -60,7 +98,58 @@ class PlaceMarker extends StatelessWidget {
   }
 }
 
-/// Triángulo de peligro; más grande si la gravedad es alta.
+/// Triángulo de peligro con aro blanco.
+class HazardTriangle extends StatelessWidget {
+  const HazardTriangle({super.key, required this.color, this.size = 44});
+
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size * 0.92,
+      child: CustomPaint(
+        painter: _TrianglePainter(color),
+        child: Align(
+          alignment: const Alignment(0, 0.45),
+          child: Icon(Icons.priority_high, color: Colors.white, size: size * 0.42),
+        ),
+      ),
+    );
+  }
+}
+
+class _TrianglePainter extends CustomPainter {
+  _TrianglePainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    final path = Path()
+      ..moveTo(w / 2, 3)
+      ..lineTo(w - 3, h - 3)
+      ..lineTo(3, h - 3)
+      ..close();
+    canvas.drawShadow(path, Colors.black, 3, false);
+    canvas.drawPath(path, Paint()..color = color);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_TrianglePainter old) => old.color != color;
+}
+
+/// Peligro en el mapa; más grande si la gravedad es alta.
 class HazardMarker extends StatelessWidget {
   const HazardMarker({
     super.key,
@@ -81,25 +170,19 @@ class HazardMarker extends StatelessWidget {
       excludeSemantics: true,
       child: GestureDetector(
         onTap: onTap,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            const Icon(Icons.warning, color: Colors.black, size: 52),
-            Icon(
-              Icons.warning,
-              color: report.severity == Severity.high
-                  ? AppTheme.hazard
-                  : AppTheme.accessLimited,
-              size: 44,
-            ),
-          ],
+        behavior: HitTestBehavior.opaque,
+        child: Center(
+          child: HazardTriangle(
+            color: hazardColor(report.severity),
+            size: report.severity == Severity.high ? 48 : 40,
+          ),
         ),
       ),
     );
   }
 }
 
-/// Punto azul de "tú estás aquí".
+/// Punto azul de "tú estás aquí", con halo.
 class UserMarker extends StatelessWidget {
   const UserMarker({super.key});
 
@@ -109,10 +192,19 @@ class UserMarker extends StatelessWidget {
       label: 'Tu ubicación',
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF2F80ED),
+          color: AppTheme.userDot.withValues(alpha: 0.22),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 4),
-          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 6)],
+        ),
+        alignment: Alignment.center,
+        child: Container(
+          width: 18,
+          height: 18,
+          decoration: BoxDecoration(
+            color: AppTheme.userDot,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: _markerShadow,
+          ),
         ),
       ),
     );
@@ -125,46 +217,42 @@ class AccessLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget row(Accessibility a) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: accessColor(a),
-                child: Icon(accessIcon(a), color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text('${a.label}: ${a.explanation}',
-                    style: Theme.of(context).textTheme.bodyMedium),
-              ),
-            ],
+    final text = Theme.of(context).textTheme;
+    final rl = context.rl;
+    Widget row(Widget badge, String title, String detail) => MergeSemantics(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                SizedBox(width: 44, child: Center(child: badge)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: text.titleMedium),
+                      Text(detail,
+                          style: text.bodyMedium?.copyWith(color: rl.text2)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final a in Accessibility.values) row(a),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            children: [
-              const Icon(Icons.warning, color: AppTheme.hazard, size: 34),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text('Peligro reportado por la comunidad',
-                    style: Theme.of(context).textTheme.bodyMedium),
-              ),
-            ],
-          ),
-        ),
+        Text('Qué significa cada marca', style: text.headlineSmall),
+        const SizedBox(height: 8),
+        for (final a in Accessibility.values)
+          row(AccessBadge(access: a, size: 36), a.label, a.explanation),
+        row(const HazardTriangle(color: AppTheme.hazard, size: 38),
+            'Peligro reportado', 'Lo avisó la comunidad; caduca si nadie lo confirma'),
+        const SizedBox(height: 4),
         Text('Los cuadrados son cruces; los círculos, lugares.',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: AppTheme.textMuted)),
+            style: text.bodyMedium?.copyWith(color: rl.text2)),
       ],
     );
   }
