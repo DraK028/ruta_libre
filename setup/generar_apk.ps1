@@ -23,7 +23,13 @@ $b = -1
 if ($a -eq 0) {
   Set-Content $estado 'en curso: build apk' -Encoding UTF8
   Write-Host '3/3 Construyendo el APK...'
-  & flutter build apk --release *> (Join-Path $salida 'apk.txt')
+  $define = @()
+  $urlFile = Join-Path $PSScriptRoot 'servidor_url.txt'
+  if (Test-Path $urlFile) {
+    $url = (Get-Content $urlFile -Raw).Trim()
+    if ($url) { $define = @("--dart-define=REPORTS_API_URL=$url"); Write-Host "   con servidor de reportes: $url" }
+  }
+  & flutter build apk --release @define *> (Join-Path $salida 'apk.txt')
   $b = $LASTEXITCODE
   $origen = Join-Path $proyecto 'build\app\outputs\flutter-apk\app-release.apk'
   if ($b -eq 0 -and (Test-Path $origen)) {

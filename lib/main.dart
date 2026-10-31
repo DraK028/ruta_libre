@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'app_state.dart';
+import 'config.dart';
 import 'services/location_service.dart';
 import 'services/places_service.dart';
 import 'services/report_repository.dart';
@@ -18,7 +19,9 @@ Future<void> main() async {
     voice: VoiceService(),
     location: LocationService(),
     places: PlacesService(prefs),
-    reportsRepo: LocalReportRepository(prefs),
+    reportsRepo: AppConfig.reportsApiUrl.isEmpty
+        ? LocalReportRepository(prefs)
+        : RemoteReportRepository(AppConfig.reportsApiUrl, prefs),
     routing: RoutingService(),
   );
   await state.init();

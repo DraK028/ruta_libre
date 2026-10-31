@@ -274,10 +274,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
-                    'Tu ubicación se usa en el teléfono para mostrar qué hay '
-                    'cerca. En este prototipo los reportes se guardan solo en '
-                    'tu teléfono. Cuando se compartan, se enviará la ubicación '
-                    'del peligro, nunca tu recorrido.',
+                    app.sharedReports
+                        ? 'Tu ubicación se usa en el teléfono para mostrar qué '
+                            'hay cerca y nunca se guarda tu recorrido. Al '
+                            'reportar se comparte solo la ubicación del peligro, '
+                            'su tipo y la nota, con un código anónimo del '
+                            'teléfono. Las fotos no salen de tu teléfono. Para '
+                            'buscar reportes cercanos se envía tu ubicación '
+                            'aproximada al servidor, sin guardarla.'
+                        : 'Tu ubicación se usa en el teléfono para mostrar qué '
+                            'hay cerca. Los reportes se guardan solo en tu '
+                            'teléfono.',
                     style: TextStyle(fontSize: 15, height: 1.4, color: rl.text),
                   ),
                 ),

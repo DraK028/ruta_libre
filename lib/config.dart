@@ -36,6 +36,14 @@ class AppConfig {
   /// Espera mínima entre descargas automáticas al moverse (por si falla la red).
   static const autoLoadCooldown = Duration(minutes: 1);
 
+  /// URL de la API de reportes compartidos (ver server/README.md). Vacía =
+  /// los reportes se guardan solo en el teléfono.
+  /// `flutter run --dart-define=REPORTS_API_URL=https://...`
+  static const reportsApiUrl = String.fromEnvironment('REPORTS_API_URL');
+
+  /// Cada cuánto se traen los reportes nuevos de la zona.
+  static const reportsRefreshInterval = Duration(minutes: 1);
+
   /// Distancia a la que se avisa de un peligro reportado.
   static const hazardAlertMeters = 30.0;
 

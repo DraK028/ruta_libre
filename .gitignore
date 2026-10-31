@@ -41,3 +41,9 @@ ios/Flutter/flutter_export_environment.sh
 /setup/instalacion.log
 /setup/estado.txt
 /setup/salida/
+/setup/servidor_url.txt
+
+# Servidor
+server/.aws-sam/
+__pycache__/
+.pytest_cache/

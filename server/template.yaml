@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Ruta Libre - API de reportes de peligros compartidos.
+  API Gateway (HTTP API) + Lambda (Python) + DynamoDB con TTL.
+  Todo cabe en la capa gratuita de AWS para un piloto.
+
+Parameters:
+  Stage:
+    Type: String
+    Default: piloto
+    Description: Nombre de la etapa (aparece en la URL).
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+    MemorySize: 256
+    Timeout: 10
+
+Resources:
+  ReportsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: id, AttributeType: S }
+        - { AttributeName: cell, AttributeType: S }
+        - { AttributeName: lastConfirmedAt, AttributeType: S }
+      KeySchema:
+        - { AttributeName: id, KeyType: HASH }
+      GlobalSecondaryIndexes:
+        - IndexName: CellIndex
+          KeySchema:
+            - { AttributeName: cell, KeyType: HASH }
+            - { AttributeName: lastConfirmedAt, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+      # DynamoDB borra solo los reportes 30 días después de caducar.
+      TimeToLiveSpecification:
+        AttributeName: purgeAt
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  ReportsApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Stage
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 20
+        ThrottlingRateLimit: 10
+      CorsConfiguration:
+        AllowOrigins: ['*']
+        AllowMethods: [GET, POST, OPTIONS]
+        AllowHeaders: [content-type, x-device-id]
+        MaxAge: 3600
+
+  ReportsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ReportsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReportsTable
+      Events:
+        List:
+          Type: HttpApi
+          Properties: { ApiId: !Ref ReportsApi, Path: /reports, Method: GET }
+        Create:
+          Type: HttpApi
+          Properties: { ApiId: !Ref ReportsApi, Path: /reports, Method: POST }
+        Confirm:
+          Type: HttpApi
+          Properties: { ApiId: !Ref ReportsApi, Path: /reports/{id}/confirm, Method: POST }
+        Gone:
+          Type: HttpApi
+          Properties: { ApiId: !Ref ReportsApi, Path: /reports/{id}/gone, Method: POST }
+
+  ReportsLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ReportsFunction}
+      RetentionInDays: 14
+
+Outputs:
+  ApiUrl:
+    Description: URL base para REPORTS_API_URL en la app
+    Value: !Sub https://${ReportsApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}

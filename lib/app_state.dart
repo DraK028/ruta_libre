@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -116,6 +117,9 @@ class AppState extends ChangeNotifier {
         : null;
     await loadPlaces(here ?? AppConfig.pilotCenter);
     _autoLoad = true;
+    await refreshReports();
+    _refreshTimer ??= Timer.periodic(
+        AppConfig.reportsRefreshInterval, (_) => refreshReports());
     return locationError ?? _placesError;
   }
 
@@ -134,6 +138,7 @@ class AppState extends ChangeNotifier {
     _lastAutoLoad = now;
     final firstHere = _loadedCenters.every((c) =>
         distanceMeters(here, c) > AppConfig.pilotRadiusMeters * 2);
+    refreshReports();
     loadPlaces(here).then((_) {
       if (_placesError == null && firstHere) {
         voice.announce('Descargué los lugares de esta zona.');
@@ -247,15 +252,36 @@ class AppState extends ChangeNotifier {
       note: note,
       photoPath: photoPath,
     );
-    await _saveReport(report);
+    final saved = _upsert(await reportsRepo.create(report));
     // Quien reporta ya sabe del peligro: no se le avisa al instante.
-    _lastAlerted[report.id] = now;
-    return report;
+    _lastAlerted[saved.id] = now;
+    return saved;
   }
 
-  Future<Report> confirmReport(Report r) => _saveReport(r.confirm(DateTime.now()));
+  /// "Sigue ahí". Lanza [ReportSyncException] si no se pudo enviar.
+  Future<Report> confirmReport(Report r) async =>
+      _upsert(await reportsRepo.confirm(r));
 
-  Future<Report> voteGone(Report r) => _saveReport(r.voteGone());
+  /// "Ya no está". Lanza [ReportSyncException] si no se pudo enviar.
+  Future<Report> voteGone(Report r) async => _upsert(await reportsRepo.voteGone(r));
+
+  /// Si los reportes se comparten con otras personas (hay servidor).
+  bool get sharedReports => reportsRepo.shared;
+
+  bool _refreshing = false;
+  Timer? _refreshTimer;
+
+  /// Trae los reportes de la zona desde el servidor (si hay).
+  Future<void> refreshReports() async {
+    if (_refreshing || !reportsRepo.shared) return;
+    _refreshing = true;
+    try {
+      _reports = await reportsRepo.refresh(me ?? AppConfig.pilotCenter);
+      notifyListeners();
+    } finally {
+      _refreshing = false;
+    }
+  }
 
   Report? reportById(String id) {
     for (final r in _reports) {
@@ -264,8 +290,7 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
-  Future<Report> _saveReport(Report r) async {
-    await reportsRepo.save(r);
+  Report _upsert(Report r) {
     final i = _reports.indexWhere((x) => x.id == r.id);
     if (i == -1) {
       _reports = [..._reports, r];
@@ -342,6 +367,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     location.position.removeListener(_onMove);
     location.dispose();
     voice.dispose();

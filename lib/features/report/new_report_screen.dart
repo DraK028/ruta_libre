@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../app_state.dart';
 import '../../core/theme.dart';
 import '../../models/report.dart';
+import '../../services/report_repository.dart';
 import '../../widgets/report_photo.dart';
 import '../../widgets/ui.dart';
 
@@ -108,16 +109,29 @@ class _NewReportScreenState extends State<NewReportScreen> {
       return;
     }
     setState(() => _sending = true);
-    await app.addReport(
-      type: type,
-      severity: _severity,
-      at: here,
-      note: _note.text.trim(),
-      photoPath: _photoPath,
-    );
+    final Report saved;
+    try {
+      saved = await app.addReport(
+        type: type,
+        severity: _severity,
+        at: here,
+        note: _note.text.trim(),
+        photoPath: _photoPath,
+      );
+    } on ReportSyncException catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(e.message)));
+      await app.voice.speak(e.message);
+      return;
+    }
     await HapticFeedback.heavyImpact();
-    await app.voice.speak(
-        'Reporte enviado: ${type.label}. Gracias por avisar a los demás.');
+    final pending = saved.id.startsWith(RemoteReportRepository.pendingPrefix);
+    await app.voice.speak(pending
+        ? 'Reporte guardado: ${type.label}. Se compartirá cuando haya conexión.'
+        : 'Reporte enviado: ${type.label}. Gracias por avisar a los demás.');
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -269,7 +283,11 @@ class _NewReportScreenState extends State<NewReportScreen> {
                     ),
                   ],
                   const SizedBox(height: 6),
-                  Text('Evita que salgan rostros o placas en la foto.',
+                  Text(
+                      app.sharedReports
+                          ? 'La foto se queda en tu teléfono; no se comparte. '
+                              'Evita que salgan rostros o placas.'
+                          : 'Evita que salgan rostros o placas en la foto.',
                       style: TextStyle(fontSize: 14, color: rl.text2)),
                   const SizedBox(height: 16),
                   TextField(
@@ -308,7 +326,8 @@ class _NewReportScreenState extends State<NewReportScreen> {
                   Text(
                     type == null
                         ? 'Los reportes caducan solos si nadie confirma que siguen ahí'
-                        : 'Caduca en ${formatTtl(type.ttl)} si nadie confirma que sigue ahí',
+                        : '${app.sharedReports ? 'Lo verán las personas cerca. ' : ''}'
+                            'Caduca en ${formatTtl(type.ttl)} si nadie confirma que sigue ahí',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 14, color: rl.text2),
                   ),

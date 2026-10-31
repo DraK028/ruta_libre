@@ -5,6 +5,7 @@ import '../../core/describe.dart';
 import '../../core/geo.dart';
 import '../../core/theme.dart';
 import '../../models/report.dart';
+import '../../services/report_repository.dart';
 import '../../widgets/map_markers.dart';
 import '../../widgets/report_photo.dart';
 import '../../widgets/ui.dart';
@@ -37,14 +38,33 @@ class _ReportScreenState extends State<ReportScreen> {
     });
   }
 
+  Future<void> _failed(AppState app, ReportSyncException e) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(e.message)));
+    await app.voice.speak('${e.message} Tu respuesta no se envió.');
+  }
+
   Future<void> _confirm(AppState app, Report r) async {
-    await app.confirmReport(r);
+    try {
+      await app.confirmReport(r);
+    } on ReportSyncException catch (e) {
+      return _failed(app, e);
+    }
+    if (!mounted) return;
     setState(() => _voted = true);
     await app.voice.speak('Gracias. El reporte seguirá activo.');
   }
 
   Future<void> _gone(AppState app, Report r) async {
-    final updated = await app.voteGone(r);
+    final Report updated;
+    try {
+      updated = await app.voteGone(r);
+    } on ReportSyncException catch (e) {
+      return _failed(app, e);
+    }
+    if (!mounted) return;
     setState(() => _voted = true);
     await app.voice.speak(updated.closed
         ? 'Gracias. El reporte se cerró.'

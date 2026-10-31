@@ -1,0 +1,34 @@
+name: Desplegar servidor
+
+# Manual: Actions → Desplegar servidor → Run workflow.
+# Necesita los secretos AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY.
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-dev.txt && python -m pytest -q tests
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - run: sam deploy --no-progressbar
+      - name: URL de la API
+        run: |
+          URL=$(aws cloudformation describe-stacks --stack-name ruta-libre-reportes \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
+          echo "### URL del servidor: $URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "Guárdala como variable de repositorio REPORTS_API_URL." >> "$GITHUB_STEP_SUMMARY"

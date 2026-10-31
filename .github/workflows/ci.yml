@@ -34,6 +34,20 @@ jobs:
       - name: Pruebas
         run: flutter test --reporter expanded
 
+  server:
+    name: Servidor - pruebas
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q tests
+
   web:
     name: Versión web
     needs: test
@@ -49,7 +63,7 @@ jobs:
       - run: flutter pub get
       # Sin clave de rutas: en web la escribe cada quien en Ajustes, así no
       # queda expuesta en el código publicado.
-      - run: flutter build web --release --base-href /${{ github.event.repository.name }}/
+      - run: flutter build web --release --base-href /${{ github.event.repository.name }}/ --dart-define=REPORTS_API_URL=${{ vars.REPORTS_API_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
@@ -90,7 +104,7 @@ jobs:
       - run: flutter pub get
       # La plantilla de Flutter firma el release con la llave de depuración:
       # sirve para instalar en tu teléfono, no para la Play Store.
-      - run: flutter build apk --release
+      - run: flutter build apk --release --dart-define=REPORTS_API_URL=${{ vars.REPORTS_API_URL }}
       - run: cp build/app/outputs/flutter-apk/app-release.apk ruta-libre.apk
       - uses: actions/upload-artifact@v4
         with:
@@ -100,9 +114,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if [ -n "${{ vars.REPORTS_API_URL }}" ]; then MODO="Reportes compartidos con el servidor."; else MODO="Reportes solo en el teléfono (sin servidor configurado)."; fi
           gh release delete prueba --yes --cleanup-tag || true
           gh release create prueba ruta-libre.apk \
             --prerelease \
             --target "$GITHUB_SHA" \
             --title "Versión de prueba" \
-            --notes "APK generado automáticamente desde ${GITHUB_SHA::7}. Descárgalo desde el teléfono e instálalo (permite instalar apps de origen desconocido)."
+            --notes "APK generado automáticamente desde ${GITHUB_SHA::7}. $MODO Descárgalo desde el teléfono e instálalo (permite instalar apps de origen desconocido)."
