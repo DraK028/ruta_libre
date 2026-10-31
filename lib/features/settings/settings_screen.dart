@@ -4,6 +4,7 @@ import '../../app_state.dart';
 import '../../config.dart';
 import '../../core/theme.dart';
 import '../../models/settings.dart';
+import '../../services/location_service.dart';
 import '../../widgets/ui.dart';
 import '../onboarding/profile_screen.dart';
 
@@ -137,6 +138,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (v) =>
                       app.updateSettings(s.copyWith(hazardAlerts: v)),
                 ),
+                if (LocationService.supportsBackground) ...[
+                  const Divider(indent: 16, endIndent: 16),
+                  SwitchListTile(
+                    title: Text('Avisar con la pantalla apagada', style: title()),
+                    subtitle: Text(
+                        'Sigue usando tu ubicación con el teléfono bloqueado o '
+                        'en la bolsa. Muestra una notificación fija y usa más '
+                        'batería.',
+                        style: muted),
+                    value: s.backgroundLocation,
+                    onChanged: (v) async {
+                      await app.updateSettings(s.copyWith(backgroundLocation: v));
+                      await app.voice.announce(v
+                          ? 'Te avisaré de peligros aunque bloquees el teléfono.'
+                          : 'Solo te avisaré con la app abierta.');
+                    },
+                  ),
+                ],
                 const Divider(indent: 16, endIndent: 16),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),

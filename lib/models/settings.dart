@@ -64,6 +64,7 @@ class AppSettings {
     this.profile,
     this.voiceGuidance = true,
     this.hazardAlerts = true,
+    this.backgroundLocation = true,
     this.onlyAccessible = false,
     this.speechRate = 0.5,
     this.textScale = 1.2,
@@ -77,6 +78,10 @@ class AppSettings {
 
   /// Aviso por voz y vibración al acercarse a un peligro reportado.
   final bool hazardAlerts;
+
+  /// Seguir la ubicación con la pantalla apagada (Android): notificación fija
+  /// y avisos de peligro aunque el teléfono esté bloqueado o en la bolsa.
+  final bool backgroundLocation;
 
   /// Ocultar en el mapa lo que no es accesible o no tiene dato.
   final bool onlyAccessible;
@@ -92,6 +97,7 @@ class AppSettings {
     MobilityProfile? profile,
     bool? voiceGuidance,
     bool? hazardAlerts,
+    bool? backgroundLocation,
     bool? onlyAccessible,
     double? speechRate,
     double? textScale,
@@ -102,6 +108,7 @@ class AppSettings {
         profile: profile ?? this.profile,
         voiceGuidance: voiceGuidance ?? this.voiceGuidance,
         hazardAlerts: hazardAlerts ?? this.hazardAlerts,
+        backgroundLocation: backgroundLocation ?? this.backgroundLocation,
         onlyAccessible: onlyAccessible ?? this.onlyAccessible,
         speechRate: speechRate ?? this.speechRate,
         textScale: textScale ?? this.textScale,
@@ -113,6 +120,7 @@ class AppSettings {
         'profile': profile?.name,
         'voiceGuidance': voiceGuidance,
         'hazardAlerts': hazardAlerts,
+        'backgroundLocation': backgroundLocation,
         'onlyAccessible': onlyAccessible,
         'speechRate': speechRate,
         'textScale': textScale,
@@ -126,6 +134,7 @@ class AppSettings {
       profile: profile == null ? null : MobilityProfile.values.byName(profile),
       voiceGuidance: (json['voiceGuidance'] as bool?) ?? true,
       hazardAlerts: (json['hazardAlerts'] as bool?) ?? true,
+      backgroundLocation: (json['backgroundLocation'] as bool?) ?? true,
       onlyAccessible: (json['onlyAccessible'] as bool?) ?? false,
       speechRate: (json['speechRate'] as num?)?.toDouble() ?? 0.5,
       textScale: (json['textScale'] as num?)?.toDouble() ?? 1.2,

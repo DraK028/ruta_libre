@@ -109,7 +109,8 @@ class AppState extends ChangeNotifier {
   /// persona (o de la zona piloto si no se obtiene su ubicación a tiempo).
   /// Devuelve un mensaje para el usuario si algo falla.
   Future<String?> start() async {
-    final locationError = await location.start();
+    final locationError =
+        await location.start(background: _settings.backgroundLocation);
     final here = locationError == null
         ? await location.firstFix(AppConfig.firstFixTimeout)
         : null;
@@ -119,7 +120,8 @@ class AppState extends ChangeNotifier {
   }
 
   /// Vuelve a pedir la ubicación (p. ej. después de encenderla).
-  Future<String?> retryLocation() => location.start();
+  Future<String?> retryLocation() =>
+      location.start(background: _settings.backgroundLocation);
 
   /// Al moverse fuera de las zonas descargadas, descarga la nueva zona.
   void _autoLoadAround(LatLng here, DateTime now) {
@@ -148,7 +150,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> updateSettings(AppSettings next) async {
+    final restartLocation = next.backgroundLocation != _settings.backgroundLocation;
     _settings = next;
+    if (restartLocation && location.isRunning) {
+      await location.start(background: next.backgroundLocation);
+    }
     voice.guidanceEnabled = next.voiceGuidance;
     await voice.setSpeechRate(next.speechRate);
     await _prefs.setString(_kSettings, jsonEncode(next.toJson()));

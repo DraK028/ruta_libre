@@ -19,12 +19,23 @@ class LocationService {
 
   StreamSubscription<Position>? _sub;
 
+  /// Si ya se está siguiendo la ubicación.
+  bool get isRunning => _sub != null;
+
   /// Por debajo de esta velocidad (m/s) el rumbo del GPS no es confiable.
   static const _minWalkingSpeed = 0.5;
 
+  /// En Android se puede seguir la ubicación con la pantalla apagada.
+  static bool get supportsBackground =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
   /// Pide permiso y empieza a seguir la ubicación. Devuelve un mensaje
   /// para el usuario si no se puede.
-  Future<String?> start() async {
+  ///
+  /// Con [background] en Android se inicia un servicio en primer plano
+  /// (notificación fija): así la app sigue recibiendo la ubicación y avisando
+  /// de peligros con el teléfono bloqueado.
+  Future<String?> start({bool background = false}) async {
     if (!await Geolocator.isLocationServiceEnabled()) {
       return 'La ubicación del teléfono está apagada.';
     }
@@ -43,12 +54,40 @@ class LocationService {
 
     await _sub?.cancel();
     _sub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.best,
-        distanceFilter: 3,
-      ),
+      locationSettings: _streamSettings(background),
     ).listen(_onPosition, onError: (Object _) {});
     return null;
+  }
+
+  /// Cada 3 m de movimiento; en Android, además, como máximo cada segundo.
+  LocationSettings _streamSettings(bool background) {
+    if (!supportsBackground) {
+      return const LocationSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 3,
+      );
+    }
+    return AndroidSettings(
+      accuracy: LocationAccuracy.best,
+      distanceFilter: 3,
+      intervalDuration: const Duration(seconds: 1),
+      foregroundNotificationConfig: background
+          ? const ForegroundNotificationConfig(
+              notificationTitle: 'Ruta Libre está activa',
+              notificationText:
+                  'Usa tu ubicación para avisarte de peligros cercanos.',
+              notificationChannelName: 'Ubicación en segundo plano',
+              enableWakeLock: true,
+              setOngoing: true,
+            )
+          : null,
+    );
+  }
+
+  /// Deja de seguir la ubicación (y detiene la notificación fija).
+  Future<void> stop() async {
+    await _sub?.cancel();
+    _sub = null;
   }
 
   Future<void> _quickFix() async {
@@ -98,6 +137,7 @@ class LocationService {
 
   void dispose() {
     _sub?.cancel();
+    _sub = null;
     position.dispose();
   }
 }

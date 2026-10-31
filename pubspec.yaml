@@ -1,7 +1,7 @@
 name: ruta_libre
 description: Mapa de lugares y rutas accesibles con reportes de obstáculos y guía por voz.
 publish_to: "none"
-version: 0.1.1+2
+version: 0.1.2+3
 
 environment:
   sdk: ^3.8.0

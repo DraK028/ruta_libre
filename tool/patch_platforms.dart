@@ -26,17 +26,33 @@ String _patchAndroidManifest() {
     return '✗ No existe ${file.path}: corre flutter create primero.';
   }
   var xml = file.readAsStringSync();
-  if (xml.contains(_marker)) return '• AndroidManifest.xml ya estaba listo.';
 
   // Sin permiso CAMERA a propósito: image_picker usa la app de cámara del
   // sistema, y declararlo obligaría a pedirlo en tiempo de ejecución.
-  const permissions = '''
-    <!-- $_marker: permisos -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-''';
+  // FOREGROUND_SERVICE*: seguir la ubicación con la pantalla apagada
+  // (notificación fija de geolocator). POST_NOTIFICATIONS: mostrarla en
+  // Android 13+.
+  const permissions = [
+    'android.permission.INTERNET',
+    'android.permission.ACCESS_FINE_LOCATION',
+    'android.permission.ACCESS_COARSE_LOCATION',
+    'android.permission.RECORD_AUDIO',
+    'android.permission.FOREGROUND_SERVICE',
+    'android.permission.FOREGROUND_SERVICE_LOCATION',
+    'android.permission.WAKE_LOCK',
+    'android.permission.POST_NOTIFICATIONS',
+  ];
+  final missing = permissions
+      .where((p) => !xml.contains('android:name="$p"'))
+      .map((p) => '    <uses-permission android:name="$p" />\n')
+      .join();
+
+  final open = RegExp(r'<manifest[^>]*>').firstMatch(xml);
+  if (open == null) return '✗ AndroidManifest.xml sin etiqueta <manifest>.';
+  if (missing.isNotEmpty) {
+    xml = xml.replaceRange(
+        open.end, open.end, '\n    <!-- $_marker: permisos -->\n$missing');
+  }
 
   const queries = '''
         <!-- $_marker: servicios y apps que usa Ruta Libre -->
@@ -54,16 +70,23 @@ String _patchAndroidManifest() {
             <data android:scheme="https" />
         </intent>
 ''';
+  // Nombre visible bajo el ícono (la plantilla pone el del paquete).
+  final label = xml.contains('android:label="ruta_libre"');
+  if (label) {
+    xml = xml.replaceFirst('android:label="ruta_libre"', 'android:label="Ruta Libre"');
+  }
 
-  final open = RegExp(r'<manifest[^>]*>').firstMatch(xml);
-  if (open == null) return '✗ AndroidManifest.xml sin etiqueta <manifest>.';
-  xml = xml.replaceRange(open.end, open.end, '\n$permissions');
-  xml = xml.contains('<queries>')
-      ? xml.replaceFirst('<queries>', '<queries>\n$queries')
-      : xml.replaceFirst(
-          '</manifest>', '    <queries>\n$queries    </queries>\n</manifest>');
+  final hasQueries = xml.contains('android.speech.RecognitionService');
+  if (!hasQueries) {
+    xml = xml.contains('<queries>')
+        ? xml.replaceFirst('<queries>', '<queries>\n$queries')
+        : xml.replaceFirst(
+            '</manifest>', '    <queries>\n$queries    </queries>\n</manifest>');
+  }
+  if (missing.isEmpty && hasQueries && !label) return '• AndroidManifest.xml ya estaba listo.';
   file.writeAsStringSync(xml);
-  return '✓ AndroidManifest.xml: ubicación, micrófono, internet y consultas.';
+  return '✓ AndroidManifest.xml: permisos (ubicación, segundo plano, micrófono, '
+      'internet, notificaciones) y consultas.';
 }
 
 String _patchAndroidGradle() {
