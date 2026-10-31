@@ -77,9 +77,6 @@ class _MapScreenState extends State<MapScreen> {
   String _query = '';
   LatLng _cameraCenter = AppConfig.pilotCenter;
 
-  /// Centros de las zonas ya descargadas.
-  final List<LatLng> _loadedCenters = [AppConfig.pilotCenter];
-
   late final AppState _app;
 
   @override
@@ -105,8 +102,9 @@ class _MapScreenState extends State<MapScreen> {
       await _app.voice.speak(error);
       return;
     }
-    final accessible = _app.allPlaces
-        .where((p) => p.kind == PlaceKind.poi && p.access == Accessibility.yes)
+    final accessible = _app
+        .placesNearby(limit: 1000)
+        .where((p) => p.access == Accessibility.yes)
         .length;
     final hazards = _app.activeReports().length;
     await _app.voice.announce(
@@ -179,8 +177,14 @@ class _MapScreenState extends State<MapScreen> {
   void _centerOnMe() {
     final me = _app.me;
     if (me == null) {
-      _app.voice.speak('Todavía no tengo tu ubicación.');
-      _snack('Todavía no tengo tu ubicación.');
+      setState(() => _followMe = true);
+      // Puede que la ubicación estuviera apagada al abrir: se vuelve a pedir.
+      _app.retryLocation().then((error) {
+        final message = error ?? 'Buscando tu ubicación…';
+        if (!mounted) return;
+        _snack(message);
+        _app.voice.speak(message);
+      });
       return;
     }
     setState(() => _followMe = true);
@@ -281,8 +285,12 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  bool get _outsideLoadedArea => _loadedCenters.every((c) =>
-      distanceMeters(_cameraCenter, c) > AppConfig.pilotRadiusMeters * 0.8);
+  bool get _outsideLoadedArea => outsideZones(
+        _cameraCenter,
+        _app.loadedCenters,
+        AppConfig.pilotRadiusMeters.toDouble(),
+        margin: 0.8,
+      );
 
   Future<void> _loadHere() async {
     final center = _cameraCenter;
@@ -294,10 +302,7 @@ class _MapScreenState extends State<MapScreen> {
       await _app.voice.speak(error);
       return;
     }
-    setState(() {
-      _loadedCenters.add(center);
-      _showLoadHere = _outsideLoadedArea;
-    });
+    setState(() => _showLoadHere = _outsideLoadedArea);
     await _app.voice.announce('Lugares de esta zona descargados.');
   }
 
@@ -451,7 +456,11 @@ class _MapScreenState extends State<MapScreen> {
                           if (_filter != null) _filter!.label,
                           if (_query.trim().isNotEmpty) '“${_query.trim()}”',
                         ].join(' · ')
-                      : 'Alrededores de UPIICSA',
+                      : app.me == null
+                          ? 'Zona piloto: UPIICSA (sin ubicación)'
+                          : app.nearPilot
+                              ? 'Alrededores de UPIICSA'
+                              : 'Alrededores de tu ubicación',
                   onTab: (h) => setState(() => _showHazards = h),
                   onListen: _speakList,
                   onPlace: (p) => _push(PlaceScreen(place: p)),

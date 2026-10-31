@@ -25,6 +25,17 @@ class AppConfig {
   /// Cada cuánto se vuelven a descargar los lugares de una zona.
   static const placesCacheTtl = Duration(days: 7);
 
+  /// "Cerca de ti" solo lista lo que está a esta distancia o menos, para que
+  /// alguien lejos de la zona piloto no vea UPIICSA como "cercano".
+  static const nearbyMaxMeters = 3000.0;
+
+  /// Tiempo máximo que se espera la primera ubicación al abrir la app antes
+  /// de descargar la zona piloto.
+  static const firstFixTimeout = Duration(seconds: 12);
+
+  /// Espera mínima entre descargas automáticas al moverse (por si falla la red).
+  static const autoLoadCooldown = Duration(minutes: 1);
+
   /// Distancia a la que se avisa de un peligro reportado.
   static const hazardAlertMeters = 30.0;
 

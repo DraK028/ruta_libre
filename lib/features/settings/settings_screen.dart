@@ -228,7 +228,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   title: Text('Actualizar lugares', style: title()),
                   subtitle: Text(
-                      'Vienen de OpenStreetMap y se guardan en el teléfono por '
+                      'Descarga de nuevo los lugares de donde estás. Vienen de '
+                      'OpenStreetMap y se guardan en el teléfono por '
                       '${AppConfig.placesCacheTtl.inDays} días.',
                       style: muted),
                   trailing: app.loadingPlaces
@@ -240,7 +241,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: app.loadingPlaces
                       ? null
                       : () async {
-                          await app.loadPlaces(AppConfig.pilotCenter, force: true);
+                          await app.loadPlaces(app.me ?? AppConfig.pilotCenter,
+                              force: true);
                           await app.voice
                               .speak(app.placesError ?? 'Lugares actualizados.');
                         },

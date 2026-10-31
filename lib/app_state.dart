@@ -55,6 +55,13 @@ class AppState extends ChangeNotifier {
   String? _placesError;
   final Map<String, DateTime> _lastAlerted = {};
 
+  /// Centros de las zonas cuyos lugares ya están cargados.
+  final List<LatLng> _loadedCenters = [];
+  DateTime? _lastAutoLoad;
+
+  /// La descarga automática al moverse empieza cuando termina [start].
+  bool _autoLoad = false;
+
   AppSettings get settings => _settings;
   MobilityProfile get profile => _settings.profile ?? MobilityProfile.mobilityAid;
   List<Place> get allPlaces => List.unmodifiable(_places);
@@ -62,6 +69,14 @@ class AppState extends ChangeNotifier {
   bool get loadingPlaces => _loadingPlaces;
   String? get placesError => _placesError;
   LatLng? get me => location.position.value;
+  List<LatLng> get loadedCenters => List.unmodifiable(_loadedCenters);
+
+  /// Si la persona está dentro (o no se sabe dónde está) de la zona piloto.
+  bool get nearPilot {
+    final here = me;
+    return here == null ||
+        distanceMeters(here, AppConfig.pilotCenter) <= AppConfig.pilotRadiusMeters;
+  }
   double? get heading => location.heading;
 
   /// Lugares que se muestran según el filtro "solo accesibles".
@@ -83,16 +98,45 @@ class AppState extends ChangeNotifier {
     await voice.init(speechRate: _settings.speechRate);
     _reports = await reportsRepo.loadAll();
     final cached = places.cached(AppConfig.pilotCenter, AppConfig.pilotRadiusMeters);
-    if (cached != null) _places = cached;
+    if (cached != null) {
+      _places = cached;
+      _loadedCenters.add(AppConfig.pilotCenter);
+    }
     notifyListeners();
   }
 
-  /// Empieza a seguir la ubicación y descarga la zona piloto.
+  /// Empieza a seguir la ubicación y descarga los lugares de donde está la
+  /// persona (o de la zona piloto si no se obtiene su ubicación a tiempo).
   /// Devuelve un mensaje para el usuario si algo falla.
   Future<String?> start() async {
     final locationError = await location.start();
-    await loadPlaces(AppConfig.pilotCenter);
+    final here = locationError == null
+        ? await location.firstFix(AppConfig.firstFixTimeout)
+        : null;
+    await loadPlaces(here ?? AppConfig.pilotCenter);
+    _autoLoad = true;
     return locationError ?? _placesError;
+  }
+
+  /// Vuelve a pedir la ubicación (p. ej. después de encenderla).
+  Future<String?> retryLocation() => location.start();
+
+  /// Al moverse fuera de las zonas descargadas, descarga la nueva zona.
+  void _autoLoadAround(LatLng here, DateTime now) {
+    if (!_autoLoad || _loadingPlaces) return;
+    if (!outsideZones(here, _loadedCenters, AppConfig.pilotRadiusMeters.toDouble())) {
+      return;
+    }
+    final last = _lastAutoLoad;
+    if (last != null && now.difference(last) < AppConfig.autoLoadCooldown) return;
+    _lastAutoLoad = now;
+    final firstHere = _loadedCenters.every((c) =>
+        distanceMeters(here, c) > AppConfig.pilotRadiusMeters * 2);
+    loadPlaces(here).then((_) {
+      if (_placesError == null && firstHere) {
+        voice.announce('Descargué los lugares de esta zona.');
+      }
+    });
   }
 
   // ---------- Ajustes ----------
@@ -134,6 +178,10 @@ class AppState extends ChangeNotifier {
         byKey[p.key] = p;
       }
       _places = byKey.values.toList();
+      if (outsideZones(center, _loadedCenters, AppConfig.pilotRadiusMeters.toDouble(),
+          margin: 0.1)) {
+        _loadedCenters.add(center);
+      }
     } on PlacesException catch (e) {
       _placesError = e.message;
     } finally {
@@ -147,6 +195,7 @@ class AppState extends ChangeNotifier {
     final here = me ?? AppConfig.pilotCenter;
     final list = visiblePlaces
         .where((p) => includeCrossings || p.kind == PlaceKind.poi)
+        .where((p) => distanceMeters(here, p.location) <= AppConfig.nearbyMaxMeters)
         .toList()
       ..sort((a, b) => distanceMeters(here, a.location)
           .compareTo(distanceMeters(here, b.location)));
@@ -263,8 +312,10 @@ class AppState extends ChangeNotifier {
     // El GPS solo avisa cada 3 m, así que no es una carga excesiva.
     notifyListeners();
     final here = me;
-    if (here == null || !_settings.hazardAlerts) return;
+    if (here == null) return;
     final now = DateTime.now();
+    _autoLoadAround(here, now);
+    if (!_settings.hazardAlerts) return;
     final due = hazardsToAnnounce(
       reports: _reports,
       me: here,

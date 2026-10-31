@@ -73,4 +73,14 @@ void main() {
     expect(formatDuration(3900), '1 h 5 min');
     expect(formatDuration(7200), '2 h');
   });
+
+  test('detecta cuando se sale de las zonas descargadas', () {
+    // ~1.1 km al norte del centro piloto.
+    const far = LatLng(19.4058, -99.0912);
+    expect(outsideZones(origin, [origin], 1000), isFalse);
+    expect(outsideZones(north, [origin], 1000), isFalse); // ~111 m
+    expect(outsideZones(far, [origin], 1000), isTrue);
+    expect(outsideZones(far, [origin, far], 1000), isFalse);
+    expect(outsideZones(origin, const [], 1000), isTrue);
+  });
 }

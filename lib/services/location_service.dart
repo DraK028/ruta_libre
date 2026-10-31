@@ -37,6 +37,10 @@ class LocationService {
       return 'Ruta Libre necesita tu ubicación para mostrar qué hay cerca.';
     }
 
+    // Una primera lectura rápida: la última conocida (instantánea, puede ser
+    // vieja) y luego la actual. Así el mapa no espera a que llegue el flujo.
+    unawaited(_quickFix());
+
     await _sub?.cancel();
     _sub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
@@ -45,6 +49,44 @@ class LocationService {
       ),
     ).listen(_onPosition, onError: (Object _) {});
     return null;
+  }
+
+  Future<void> _quickFix() async {
+    if (!kIsWeb) {
+      try {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null && position.value == null) _onPosition(last);
+      } catch (_) {}
+    }
+    try {
+      final now = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+      _onPosition(now);
+    } catch (_) {
+      // Sin lectura inmediata: el flujo la dará en cuanto la tenga.
+    }
+  }
+
+  /// Espera la primera ubicación hasta [timeout]; null si no llega.
+  Future<LatLng?> firstFix(Duration timeout) async {
+    if (position.value != null) return position.value;
+    final done = Completer<LatLng?>();
+    void listener() {
+      if (position.value != null && !done.isCompleted) {
+        done.complete(position.value);
+      }
+    }
+
+    position.addListener(listener);
+    try {
+      return await done.future.timeout(timeout, onTimeout: () => null);
+    } finally {
+      position.removeListener(listener);
+    }
   }
 
   void _onPosition(Position p) {

@@ -121,3 +121,15 @@ String formatDuration(double seconds) {
   final h = minutes ~/ 60, m = minutes % 60;
   return m == 0 ? '$h h' : '$h h $m min';
 }
+
+/// Si [point] queda fuera de todas las zonas ya descargadas.
+///
+/// [margin] es la fracción del radio a partir de la cual conviene descargar
+/// otra zona: con 0.6 se descarga antes de llegar al borde de la anterior.
+bool outsideZones(
+  LatLng point,
+  Iterable<LatLng> centers,
+  double radiusMeters, {
+  double margin = 0.6,
+}) =>
+    centers.every((c) => distanceMeters(point, c) > radiusMeters * margin);
